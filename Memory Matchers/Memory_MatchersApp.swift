@@ -12,21 +12,22 @@ import SwiftData
 struct Memory_MatchersApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Score.self, // Include Score model
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
+        
         do {
+            print("ModelContainer successfully initialized!")
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
-
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .modelContainer(sharedModelContainer) // Inject SwiftData ModelContainer
         }
-        .modelContainer(sharedModelContainer)
     }
 }

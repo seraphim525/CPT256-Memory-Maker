@@ -1,7 +1,10 @@
 import SwiftUI
+import SwiftData
 import AVFoundation
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var scores: [Score]
     
     @State private var cards: [String] = []
     @State private var shuffledCards: [String] = []
@@ -14,12 +17,16 @@ struct ContentView: View {
     @State private var elapsedTime: TimeInterval = 0
     @State private var userName: String = ""
     @State private var showNameEntry = false
+    @State private var showScores = false
     
     private let allEmojis = ["😂", "😍", "😭", "😩", "😌", "😎", "🤯", "🥳", "🤓", "🥺", "😤", "🤠", "🫠", "😏", "🤩", "😵"]
     
     var body: some View {
         VStack {
-            if showGameSelection {
+            if showScores {
+                scoreListView
+            }
+            else if showGameSelection {
                 gameSelectionView
             } else {
                 gameView
@@ -48,7 +55,7 @@ struct ContentView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
                 Button("Save") {
-                    // Handle saving the username here
+                    saveScore()
                     self.showNameEntry = false
                     self.showGameSelection = true
                 }
@@ -80,6 +87,12 @@ struct ContentView: View {
                 .padding()
                 .background(RoundedRectangle(cornerRadius:20).stroke(Color.purple, lineWidth: 4))
                 .padding()
+            
+            Button("View Scores") {
+                withAnimation {
+                    self.showScores.toggle()
+                }
+            }
         }
         .font(.title2)
         .padding()
@@ -210,6 +223,52 @@ struct ContentView: View {
         shuffleCards()
         startTime = Date()
         elapsedTime = 0
+    }
+    
+    func saveScore() {
+        let newScore = Score(name: userName, time: elapsedTime, game: "\(gridSize.rows) x \(gridSize.columns)")
+        
+        print("Attempting to save score: \(newScore.name), \(newScore.time), \(newScore.game)")
+        
+        modelContext.insert(newScore)  // Insert new score into SwiftData
+        
+        do {
+            try modelContext.save()
+            print("Score saved!")
+
+            // Fetch all scores and print them to debug
+            let scores = try modelContext.fetch(FetchDescriptor<Score>())
+            print("Saved Scores:")
+            for score in scores {
+                print("Name: \(score.name), Time: \(score.time), Game Mode: \(score.game)")
+            }
+        } catch {
+            print("Error saving score: \(error.localizedDescription)")
+        }
+    }
+
+    private var scoreListView: some View {
+        VStack {
+            Text("Scores")
+                .font(.largeTitle.bold())
+                .padding()
+
+            List(scores, id: \.id) { score in
+                VStack(alignment: .leading) {
+                    Text("Name: \(score.name)")
+                    Text("Time: \(String(format: "%.1f", score.time)) sec")
+                    Text("Game Mode: \(score.game)")
+                }
+            }
+            
+            Button("Back") {
+                withAnimation {
+                    self.showScores = false
+                }
+            }
+            .padding()
+            .background(RoundedRectangle(cornerRadius: 10).stroke(Color.purple, lineWidth: 4))
+        }
     }
 }
 

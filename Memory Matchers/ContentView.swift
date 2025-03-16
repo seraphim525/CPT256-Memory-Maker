@@ -19,19 +19,55 @@ struct ContentView: View {
     @State private var showNameEntry = false
     @State private var showScores = false
     
-    private let allEmojis = ["😂", "😍", "😭", "😩", "😌", "😎", "🤯", "🥳", "🤓", "🥺", "😤", "🤠", "🫠", "😏", "🤩", "😵"]
+    @State private var audioPlayer: AVAudioPlayer?
+    @State private var bgMusicPlayer: AVAudioPlayer?
+    
+    //private let allEmojis = ["😂", "😍", "😭", "😩", "😌", "😎", "🤯", "🥳", "🤓", "🥺", "😤", "🤠", "🫠", "😏", "🤩", "😵"] //Cards as emojis
+    
+    private let cardImages = ["card1", "card2", "card3", "card4", "card5", "card6", "card7", "card8"] //Cards use images
+    
     
     var body: some View {
-        VStack {
-            if showScores {
-                scoreListView
-            }
-            else if showGameSelection {
-                gameSelectionView
-            } else {
-                gameView
+        ZStack {
+            
+            
+            Image("bg")
+                .resizable()
+                .scaledToFill()
+                .edgesIgnoringSafeArea(.all)
+                .blur(radius: 1)
+            
+            Color.black.opacity(0.3)
+                .edgesIgnoringSafeArea(.all)
+            
+            VStack {
+                if showScores {
+                    scoreListView
+                }
+                else if showGameSelection {
+                    gameSelectionView
+                } else {
+                    gameView
+                }
             }
         }
+        .onAppear {
+#if !DEBUG //stops music from playing while in preview mode remove before launching simulator
+            playBackgroundMusic(named: "bg_music")
+                // Register for app lifecycle events to stop music when the app is backgrounded
+            NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+                    stopBackgroundMusic()
+                }
+                
+            NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+                    stopBackgroundMusic()
+                }
+#endif
+        }
+        .onDisappear {
+            stopBackgroundMusic()
+        }
+        
         .alert(isPresented: self.$gameWon) {
             Alert(title: Text("You Win!"), message: Text("Congratulations! You finished in \(String(format: "%.1f", elapsedTime)) seconds."), dismissButton: .default(Text("Play Again")) {
                 self.showNameEntry = true
@@ -70,21 +106,26 @@ struct ContentView: View {
         VStack {
             Text("Memory Matchers")
                 .font(.largeTitle.bold())
+                .foregroundColor(Color.white)
                 .padding()
             Text("Select Game Mode")
                 .font(.title.bold())
+                .foregroundColor(Color.white)
                 .padding()
             
             Button("2 x 3") { startGame(rows: 2, columns: 3) }
                 .padding()
+                .foregroundColor(Color.white)
                 .background(RoundedRectangle(cornerRadius:20).stroke(Color.purple, lineWidth: 4))
                 .padding()
             Button("3 x 4") { startGame(rows: 3, columns: 4) }
                 .padding()
+                .foregroundColor(Color.white)
                 .background(RoundedRectangle(cornerRadius:20).stroke(Color.purple, lineWidth: 4))
                 .padding()
             Button("4 x 4") { startGame(rows: 4, columns: 4) }
                 .padding()
+                .foregroundColor(Color.white)
                 .background(RoundedRectangle(cornerRadius:20).stroke(Color.purple, lineWidth: 4))
                 .padding()
             
@@ -93,6 +134,7 @@ struct ContentView: View {
                     self.showScores.toggle()
                 }
             }
+            .foregroundColor(Color.white)
         }
         .font(.title2)
         .padding()
@@ -103,6 +145,7 @@ struct ContentView: View {
             
             Text("Time: \(String(format: "%.1f", elapsedTime)) sec")
                 .font(.title2)
+                .foregroundColor(Color.white)
                 .padding()
             
             GridStack(rows: gridSize.rows, columns: gridSize.columns) { row, col in
@@ -164,10 +207,45 @@ struct ContentView: View {
         }
     }
     
+    // Play custom sound (match, no match)
+    func playCustomSound(named soundName: String, withExtension ext: String = "wav") {
+        if let soundURL = Bundle.main.url(forResource: soundName, withExtension: ext) {
+            do {
+                audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
+                audioPlayer?.play()
+            } catch {
+                print("Error playing sound: \(error.localizedDescription)")
+            }
+        } else {
+            print("Sound file not found")
+        }
+    }
+
+    // Play background music (looped)
+    func playBackgroundMusic(named soundName: String, withExtension ext: String = "wav") {
+        if let musicURL = Bundle.main.url(forResource: soundName, withExtension: ext) {
+            do {
+                bgMusicPlayer = try AVAudioPlayer(contentsOf: musicURL)
+                bgMusicPlayer?.numberOfLoops = -1
+                bgMusicPlayer?.play()
+            } catch {
+                print("Error playing background music: \(error.localizedDescription)")
+            }
+        } else {
+            print("Background music file not found")
+        }
+    }
+
+    // Stop background music
+    func stopBackgroundMusic() {
+        bgMusicPlayer?.stop()
+    }
+    
     func startGame(rows: Int, columns: Int) {
         gridSize = (rows, columns)
         let numPairs = (rows * columns) / 2
-        cards = Array(allEmojis.shuffled().prefix(numPairs))
+        //cards = Array(allEmojis.shuffled().prefix(numPairs)) //Use emojis
+        cards = Array(cardImages.shuffled().prefix(numPairs)) //Use images
         restartGame()
         showGameSelection = false
         startTime = Date()
@@ -202,12 +280,15 @@ struct ContentView: View {
         
         if shuffledCards[firstIndex] == shuffledCards[secondIndex] {
             matchedCards += selectedCards
-            playMatchSound()
+            playCustomSound(named: "match_effect")
             
             if matchedCards.count == shuffledCards.count {
                 elapsedTime = Date().timeIntervalSince(startTime ?? Date())
                 gameWon = true
             }
+        }
+        else {
+            playCustomSound(named: "no_match")
         }
         selectedCards.removeAll()
     }
@@ -270,6 +351,7 @@ struct ContentView: View {
             .background(RoundedRectangle(cornerRadius: 10).stroke(Color.purple, lineWidth: 4))
         }
     }
+        
 }
 
 struct CardView: View {
@@ -286,12 +368,31 @@ struct CardView: View {
                 .overlay (RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.gray, lineWidth: 2)
                 )
-            if isFlipped {
+            /*if isFlipped { //For emojis
                 Text(symbol)
                     .font(.largeTitle)
                     .transition(.scale)
+            }*/
+            if isFlipped {
+                Image(symbol) // Front image (flipped)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 65, height: 85) // Keep it slightly inside the border
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else {
+                Image("card_back") // Back image (not flipped)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 65, height: 85) // Keep it the same size as the front
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
+            
         }
+        .rotation3DEffect(
+            .degrees(isFlipped ? 180 : 0),
+            axis: (x: 0, y: 1, z: 0)
+            )
+        .animation(.easeInOut(duration: 0.3), value: isFlipped)
     }
 }
 
